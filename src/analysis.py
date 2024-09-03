@@ -24,8 +24,8 @@ female_students = df[df['gender'] == 'female']
 male_students = df[df['gender'] == 'male']
 
 # Plotting
-#plot_gender(female_students, 'female', 'pink')
-#plot_gender(male_students, 'male', 'blue')
+plot_gender(female_students, 'female', 'pink')
+plot_gender(male_students, 'male', 'blue')
 
 # Clustering function
 def clustering(data):
@@ -46,7 +46,7 @@ def clustering(data):
     plt.show()
 
 # Call the clustering function
-#clustering(df)
+clustering(df)
 
 mean_ethnicity = df.groupby('race/ethnicity')[['math score', 'reading score', 'writing score']].mean()
 median_ethnicity = df.groupby('race/ethnicity')[['math score', 'reading score', 'writing score']].median()

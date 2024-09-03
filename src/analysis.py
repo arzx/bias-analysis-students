@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.cluster import KMeans
 from scipy.stats import f_oneway
+from sklearn.linear_model import LinearRegression
 
 # Load the data
 df = pd.read_csv("data/exams.csv")
@@ -69,3 +70,14 @@ f_stat_writing, p_value_writing = f_oneway(*writing_scores)
 print("ANOVA Results for Math: F-statistic = {}, p-value = {}".format(f_stat_math, p_value_math))
 print("ANOVA Results for Reading: F-statistic = {}, p-value = {}".format(f_stat_reading, p_value_reading))
 print("ANOVA Results for Writing: F-statistic = {}, p-value = {}".format(f_stat_writing, p_value_writing))
+
+
+X = pd.get_dummies(df[['gender', 'race/ethnicity', 'parental level of education', 'lunch', 'test preparation course']], drop_first=True)
+y = df[['math score', 'reading score', 'writing score']]
+
+model = LinearRegression()
+model.fit(X, y)
+
+# Predicting scores for new data
+new_data = pd.get_dummies(df, drop_first=True)
+predictions = model.predict(new_data)

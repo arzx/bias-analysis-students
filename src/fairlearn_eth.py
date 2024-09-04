@@ -4,8 +4,10 @@ import torch
 from torch import nn
 import matplotlib.pyplot as plt
 import seaborn as sns
-from fairlearn.reductions import GridSearch, DemographicParity, ErrorRate
+from fairlearn.reductions import GridSearch, DemographicParity
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split
 
 # Load the dataset
 data = pd.read_csv('data/exams.csv')
@@ -19,118 +21,63 @@ for column in ['gender', 'race/ethnicity', 'parental level of education', 'lunch
 
 # Define features and target
 X = data.drop(columns=['math score', 'reading score', 'writing score'])
-y = data[['math score', 'reading score', 'writing score']].values
+y = data[['math score', 'reading score', 'writing score']].sum(axis=1)
 
 # Normalize the features
 scaler_X = StandardScaler()
 X = scaler_X.fit_transform(X)
 
-# Normalize the target variables
-scaler_y = StandardScaler()
-y = scaler_y.fit_transform(y)
+# Discretize the target variable into bins (e.g., low, medium, high)
+y_binned = pd.qcut(y, q=3, labels=[0, 1, 2])  # Binning into 3 categories
 
-# Convert to tensors
-X_tensor = torch.tensor(X, dtype=torch.float32)
-y_tensor = torch.tensor(y, dtype=torch.float32)
+# Train-test split
+X_train, X_test, y_train, y_test, sensitive_train, sensitive_test = train_test_split(
+    X, y_binned, data[['gender', 'race/ethnicity']], test_size=0.3, random_state=42
+)
 
-# Define the neural network
-class NeuralNet(nn.Module):
-    def __init__(self, input_size, output_size):
-        super(NeuralNet, self).__init__()
-        self.fc1 = nn.Linear(input_size, 128)
-        self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, output_size)
-        self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.2)  # Increased dropout rate to 20%
+# Apply Fairlearn GridSearch with Demographic Parity
+logreg = LogisticRegression(max_iter=1000)
+mitigator = GridSearch(logreg, constraints=DemographicParity(), grid_size=10)
+mitigator.fit(X_train, y_train, sensitive_features=sensitive_train)
 
-    def forward(self, x):
-        x = self.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = self.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
+# Choose the best estimator
+best_estimator = mitigator.best_estimator_
 
-# Initialize the neural network
-input_size = X.shape[1]
-output_size = y.shape[1]
-model = NeuralNet(input_size, output_size)
+# Evaluate the model on the test set
+y_pred_binned = best_estimator.predict(X_test)
 
-# Apply Fairlearn
-# Convert y to a single target by summing the scores to simplify bias mitigation
-y_sum = y.sum(axis=1)
+# Calculate accuracy as an example metric
+accuracy = accuracy_score(y_test, y_pred_binned)
+print(f"Accuracy after Fairlearn mitigation: {accuracy:.2f}")
 
-# Define demographic parity as the fairness metric
-sensitive_features = data[['gender', 'race/ethnicity']]
+# Reverse the binning for prediction (optional if you want to map it back to continuous scale)
+y_pred_continuous = best_estimator.predict_proba(X_test) @ y.unique()
 
-# Logistic regression model as a surrogate for fairness mitigation
-logreg = LogisticRegression()
+# Analyze residuals (difference between actual and predicted scores in original scale)
+y_test_continuous = pd.qcut(y_test, q=3, labels=y.unique())  # Reverse discretization for comparison
+residuals = y_test_continuous - y_pred_continuous
 
-# Fairlearn grid search with demographic parity constraint
-mitigator = GridSearch(logreg, constraints=DemographicParity(), grid_size=20)
-mitigator.fit(X, y_sum, sensitive_features=sensitive_features)
+# Add predictions and residuals to a DataFrame
+results_df = pd.DataFrame({
+    'gender': sensitive_test['gender'].map(label_encoders['gender'].inverse_transform),
+    'race/ethnicity': sensitive_test['race/ethnicity'].map(label_encoders['race/ethnicity'].inverse_transform),
+    'predicted_score': y_pred_continuous,
+    'residual': residuals
+})
 
-# Find the best predictor
-best_predictor = mitigator.best_estimator_
-
-# Use the best predictor to make predictions
-y_pred_sum = best_predictor.predict(X)
-
-# Decompose the sum prediction into individual predictions for math, reading, and writing
-# We'll distribute the sum prediction proportionally based on the original y distributions
-y_pred = y_pred_sum[:, None] * (y / y.sum(axis=1, keepdims=True))
-
-# Reverse normalization on predictions
-y_pred_original = scaler_y.inverse_transform(y_pred)
-
-# Calculate residuals
-residuals = data[['math score', 'reading score', 'writing score']].values - y_pred_original
-
-# Add predictions and residuals back to the dataframe
-data['predicted_math_score'] = y_pred_original[:, 0]
-data['predicted_reading_score'] = y_pred_original[:, 1]
-data['predicted_writing_score'] = y_pred_original[:, 2]
-data['residual_math_score'] = residuals[:, 0]
-data['residual_reading_score'] = residuals[:, 1]
-data['residual_writing_score'] = residuals[:, 2]
-
-# Plotting gender analysis
-sns.boxplot(x='gender', y='predicted_math_score', data=data)
-plt.title('Predicted Math Scores by Gender')
+# Plotting the results
+sns.boxplot(x='gender', y='predicted_score', data=results_df)
+plt.title('Predicted Scores by Gender after Bias Mitigation')
 plt.show()
 
-sns.boxplot(x='gender', y='predicted_reading_score', data=data)
-plt.title('Predicted Reading Scores by Gender')
+sns.boxplot(x='race/ethnicity', y='predicted_score', data=results_df)
+plt.title('Predicted Scores by Ethnicity after Bias Mitigation')
 plt.show()
 
-sns.boxplot(x='gender', y='predicted_writing_score', data=data)
-plt.title('Predicted Writing Scores by Gender')
+sns.boxplot(x='gender', y='residual', data=results_df)
+plt.title('Residuals by Gender after Bias Mitigation')
 plt.show()
 
-sns.boxplot(x='gender', y='residual_math_score', data=data)
-plt.title('Residual Math Scores by Gender')
-plt.show()
-
-sns.boxplot(x='gender', y='residual_reading_score', data=data)
-plt.title('Residual Reading Scores by Gender')
-plt.show()
-
-sns.boxplot(x='gender', y='residual_writing_score', data=data)
-plt.title('Residual Writing Scores by Gender')
-plt.show()
-
-# Plotting ethnicity analysis
-sns.boxplot(x='race/ethnicity', y='predicted_reading_score', data=data)
-plt.title('Predicted Reading Scores by Race/Ethnicity')
-plt.show()
-
-sns.boxplot(x='race/ethnicity', y='residual_reading_score', data=data)
-plt.title('Residual Reading Scores by Race/Ethnicity')
-plt.show()
-
-sns.boxplot(x='race/ethnicity', y='predicted_writing_score', data=data)
-plt.title('Predicted Writing Scores by Race/Ethnicity')
-plt.show()
-
-sns.boxplot(x='race/ethnicity', y='residual_writing_score', data=data)
-plt.title('Residual Writing Scores by Race/Ethnicity')
+sns.boxplot(x='race/ethnicity', y='residual', data=results_df)
+plt.title('Residuals by Ethnicity after Bias Mitigation')
 plt.show()

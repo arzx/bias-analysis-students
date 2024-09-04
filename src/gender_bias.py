@@ -1,12 +1,13 @@
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.model_selection import train_test_split, KFold
+from sklearn.model_selection import KFold
 from sklearn.utils import resample
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.metrics import mean_squared_error
 
 # Load the dataset
 data = pd.read_csv('data/exams.csv')
@@ -21,7 +22,7 @@ for column in ['gender', 'race/ethnicity', 'parental level of education', 'lunch
 # Upsample underrepresented ethnic groups
 grouped_data = data.groupby('race/ethnicity')
 max_size = grouped_data.size().max()
-
+print(grouped_data)
 # Apply upsampling
 upsampled_data = grouped_data.apply(lambda x: x.sample(max_size, replace=True) if len(x) < max_size else x)
 upsampled_data = upsampled_data.reset_index(drop=True)
@@ -38,27 +39,12 @@ X_upsampled = scaler_X.fit_transform(X_upsampled)
 scaler_y = StandardScaler()
 y_upsampled = scaler_y.fit_transform(y_upsampled)
 
-# Split the data into training and test sets
-X_train, X_test, y_train, y_test = train_test_split(X_upsampled, y_upsampled, test_size=0.2, random_state=42)
-
-# Convert X_test back to a DataFrame to see the distribution
-X_test_df = pd.DataFrame(scaler_X.inverse_transform(X_test), columns=upsampled_data.drop(columns=['math score', 'reading score', 'writing score']).columns)
-
-# Add the ethnicity back to see the group sizes in the test set
-X_test_df['race/ethnicity'] = X_test_df['race/ethnicity'].round().astype(int)
-X_test_df['race/ethnicity'] = label_encoders['race/ethnicity'].inverse_transform(X_test_df['race/ethnicity'])
-
-# Print the size of each group in the test data
-print("Group sizes in the test data:")
-print(X_test_df['race/ethnicity'].value_counts())
-
 # Convert to tensors
 X_tensor_upsampled = torch.tensor(X_upsampled, dtype=torch.float32)
 y_tensor_upsampled = torch.tensor(y_upsampled, dtype=torch.float32)
 
 # Combine into a dataset
 dataset_upsampled = TensorDataset(X_tensor_upsampled, y_tensor_upsampled)
-
 # Define the neural network
 class NeuralNet(nn.Module):
     def __init__(self, input_size, output_size):

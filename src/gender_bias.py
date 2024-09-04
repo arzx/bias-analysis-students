@@ -1,13 +1,11 @@
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import KFold
-from sklearn.utils import resample
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 import seaborn as sns
 import matplotlib.pyplot as plt
-from sklearn.metrics import mean_squared_error
 
 # Load the dataset
 data = pd.read_csv('data/exams.csv')

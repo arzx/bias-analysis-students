@@ -53,10 +53,66 @@ input_size = X.shape[1]
 output_size = y.shape[1]
 model = NeuralNet(input_size, output_size)
 
+# Group data by gender
+males = data[data['gender'] == label_encoders['gender'].transform(['male'])[0]]
+females = data[data['gender'] == label_encoders['gender'].transform(['female'])[0]]
+
+# Get predictions for males and females
+X_males = torch.tensor(scaler_X.transform(males.drop(columns=['math score', 'reading score', 'writing score'])), dtype=torch.float32)
+y_males_pred = model(X_males).detach().numpy()
+
+X_females = torch.tensor(scaler_X.transform(females.drop(columns=['math score', 'reading score', 'writing score'])), dtype=torch.float32)
+y_females_pred = model(X_females).detach().numpy()
+
+# Reverse normalization on predictions
+y_males_pred_original = scaler_y.inverse_transform(y_males_pred)
+y_females_pred_original = scaler_y.inverse_transform(y_females_pred)
+
+# Calculate residuals (difference between actual and predicted scores)
+residuals_males = males[['math score', 'reading score', 'writing score']].values - y_males_pred_original
+residuals_females = females[['math score', 'reading score', 'writing score']].values - y_females_pred_original
+
+# Create DataFrame for plotting gender analysis
+gender_plot_data = pd.DataFrame({
+    'gender': ['male'] * len(y_males_pred) + ['female'] * len(y_females_pred),
+    'predicted_math_score': list(y_males_pred_original[:, 0]) + list(y_females_pred_original[:, 0]),
+    'predicted_reading_score': list(y_males_pred_original[:, 1]) + list(y_females_pred_original[:, 1]),
+    'predicted_writing_score': list(y_males_pred_original[:, 2]) + list(y_females_pred_original[:, 2]),
+    'residual_math_score': list(residuals_males[:, 0]) + list(residuals_females[:, 0]),
+    'residual_reading_score': list(residuals_males[:, 1]) + list(residuals_females[:, 1]),
+    'residual_writing_score': list(residuals_males[:, 2]) + list(residuals_females[:, 2])
+})
+
+# Plot predicted scores by gender
+sns.boxplot(x='gender', y='predicted_math_score', data=gender_plot_data)
+plt.title('Predicted Math Scores by Gender')
+plt.show()
+
+sns.boxplot(x='gender', y='predicted_reading_score', data=gender_plot_data)
+plt.title('Predicted Reading Scores by Gender')
+plt.show()
+
+sns.boxplot(x='gender', y='predicted_writing_score', data=gender_plot_data)
+plt.title('Predicted Writing Scores by Gender')
+plt.show()
+
+# Plot residuals by gender
+sns.boxplot(x='gender', y='residual_math_score', data=gender_plot_data)
+plt.title('Residual Math Scores by Gender')
+plt.show()
+
+sns.boxplot(x='gender', y='residual_reading_score', data=gender_plot_data)
+plt.title('Residual Reading Scores by Gender')
+plt.show()
+
+sns.boxplot(x='gender', y='residual_writing_score', data=gender_plot_data)
+plt.title('Residual Writing Scores by Gender')
+plt.show()
+
 # Group data by ethnicity
 ethnicities = data['race/ethnicity'].unique()
 
-# Initialize lists to store the data for plotting
+# Initialize lists to store the data for ethnicity plotting
 predicted_reading_scores = []
 predicted_writing_scores = []
 residual_reading_scores = []
@@ -86,8 +142,8 @@ for ethnicity in ethnicities:
     residual_writing_scores.extend(residuals[:, 2])
     ethnicity_labels.extend([ethnicity] * len(y_group_pred_original))
 
-# Create DataFrame for plotting
-plot_data = pd.DataFrame({
+# Create DataFrame for plotting ethnicity analysis
+ethnicity_plot_data = pd.DataFrame({
     'predicted_reading_score': predicted_reading_scores,
     'predicted_writing_score': predicted_writing_scores,
     'residual_reading_score': residual_reading_scores,
@@ -96,29 +152,21 @@ plot_data = pd.DataFrame({
 })
 
 # Plot predicted reading scores by race/ethnicity
-sns.boxplot(x='race/ethnicity', y='predicted_reading_score', data=plot_data)
+sns.boxplot(x='race/ethnicity', y='predicted_reading_score', data=ethnicity_plot_data)
 plt.title('Predicted Reading Scores by Race/Ethnicity')
 plt.show()
 
 # Plot residual reading scores by race/ethnicity
-sns.boxplot(x='race/ethnicity', y='residual_reading_score', data=plot_data)
+sns.boxplot(x='race/ethnicity', y='residual_reading_score', data=ethnicity_plot_data)
 plt.title('Residual Reading Scores by Race/Ethnicity')
 plt.show()
 
 # Plot predicted writing scores by race/ethnicity
-sns.boxplot(x='race/ethnicity', y='predicted_writing_score', data=plot_data)
+sns.boxplot(x='race/ethnicity', y='predicted_writing_score', data=ethnicity_plot_data)
 plt.title('Predicted Writing Scores by Race/Ethnicity')
 plt.show()
 
 # Plot residual writing scores by race/ethnicity
-sns.boxplot(x='race/ethnicity', y='residual_writing_score', data=plot_data)
+sns.boxplot(x='race/ethnicity', y='residual_writing_score', data=ethnicity_plot_data)
 plt.title('Residual Writing Scores by Race/Ethnicity')
-plt.show()
-sns.boxplot(x='gender', y='predicted_math_score', data=plot_data)
-plt.title('Predicted Math Scores by Gender')
-plt.show()
-
-# Plot residuals by race/ethnicity
-sns.boxplot(x='race/ethnicity', y='residual_math_score', data=plot_data)
-plt.title('Residual Math Scores by Race/Ethnicity')
 plt.show()

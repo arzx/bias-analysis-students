@@ -1,5 +1,6 @@
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.model_selection import train_test_split
 import torch
 from torch import nn
 import matplotlib.pyplot as plt
@@ -19,17 +20,24 @@ for column in ['gender', 'race/ethnicity', 'parental level of education', 'lunch
 X = data.drop(columns=['math score', 'reading score', 'writing score'])
 y = data[['math score', 'reading score', 'writing score']].values
 
+# Split the data into training and test sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
 # Normalize the features
 scaler_X = StandardScaler()
-X = scaler_X.fit_transform(X)
+X_train = scaler_X.fit_transform(X_train)
+X_test = scaler_X.transform(X_test)
 
 # Normalize the target variables
 scaler_y = StandardScaler()
-y = scaler_y.fit_transform(y)
+y_train = scaler_y.fit_transform(y_train)
+y_test = scaler_y.transform(y_test)
 
 # Convert to tensors
-X_tensor = torch.tensor(X, dtype=torch.float32)
-y_tensor = torch.tensor(y, dtype=torch.float32)
+X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
+y_train_tensor = torch.tensor(y_train, dtype=torch.float32)
+X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
+y_test_tensor = torch.tensor(y_test, dtype=torch.float32)
 
 # Define the neural network
 class NeuralNet(nn.Module):
@@ -49,15 +57,15 @@ class NeuralNet(nn.Module):
         return x
 
 # Initialize the neural network
-input_size = X.shape[1]
-output_size = y.shape[1]
+input_size = X_train.shape[1]
+output_size = y_train.shape[1]
 model = NeuralNet(input_size, output_size)
 
 # Group data by gender
 males = data[data['gender'] == label_encoders['gender'].transform(['male'])[0]]
 females = data[data['gender'] == label_encoders['gender'].transform(['female'])[0]]
 
-# Get predictions for males and females
+# Get predictions for males and females (using the test set for demonstration)
 X_males = torch.tensor(scaler_X.transform(males.drop(columns=['math score', 'reading score', 'writing score'])), dtype=torch.float32)
 y_males_pred = model(X_males).detach().numpy()
 
